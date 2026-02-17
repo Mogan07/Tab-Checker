@@ -1,0 +1,242 @@
+<!DOCTYPE html>  
+<html lang="en">  
+<head>  
+  <meta charset="UTF-8" />  
+  <title>Tab Name Checker</title>  
+  <style>  
+    * { box-sizing: border-box; }  
+  
+    body {  
+      margin: 0;  
+      height: 100vh;  
+      display: flex;  
+      align-items: center;  
+      justify-content: center;  
+      background: radial-gradient(circle at top, #35194b 0, #050816 55%);  
+      font-family: "Arial", sans-serif;  
+      color: #fff;  
+    }  
+  
+    .wrapper {  
+      text-align: center;  
+      width: 100%;  
+      max-width: 720px;  
+      padding: 24px;  
+    }  
+  
+    .title { font-size: 26px; margin-bottom: 16px; font-weight: 700; }  
+  
+    .label { font-size: 18px; margin-bottom: 8px; }  
+  
+    .input {  
+      width: 100%;  
+      max-width: 440px;  
+      padding: 10px 14px;  
+      font-size: 18px;  
+      border-radius: 6px;  
+      border: none;  
+      outline: none;  
+      margin-bottom: 6px;  
+    }  
+  
+    .char-info {  
+      font-size: 12px;  
+      opacity: 0.8;  
+      margin-bottom: 18px;  
+    }  
+  
+    .preview-label {  
+      font-size: 16px;  
+      margin-bottom: 8px;  
+      opacity: 0.9;  
+    }  
+  
+    /* === Game-like tab === */  
+    .tab-outer {  
+      margin: 0 auto;  
+      width: 190px;              /* total width: stripes + text area */  
+      display: flex;  
+      justify-content: flex-start;  
+      align-items: stretch;  
+    }  
+  
+    .tab-stripes {  
+      width: 20px;  
+      background: repeating-linear-gradient(  
+        -45deg,  
+        #2b1510,  
+        #2b1510 4px,  
+        #f4b300 4px,  
+        #f4b300 8px  
+      );  
+    }  
+  
+    .tab-body {  
+      --lh: 18px;  
+      --lines: 2;  
+  
+      flex: 1;  
+      background: #ffcf29;  
+      border-radius: 0 4px 4px 0;  
+      padding: 8px 10px;  
+      color: #222;  
+      text-align: left;  
+  
+      font-size: 16px;  
+      font-weight: 700;  
+      line-height: var(--lh);  
+  
+      white-space: pre-line;   /* we insert \n manually */  
+      overflow: hidden;        /* visually fixed to 2 lines */  
+      height: calc(var(--lh) * var(--lines) + 16px); /* padding top+bottom = 16px */  
+    }  
+  
+    .tab-body.too-long {  
+      background: #f5a900;  
+    }  
+  
+    .status {  
+      margin-top: 10px;  
+      font-size: 14px;  
+      opacity: 0.95;  
+    }  
+  </style>  
+</head>  
+<body>  
+  <div class="wrapper">  
+    <div class="title">Tab Name Checker 🎮</div>  
+  
+    <div class="label">Tab name:</div>  
+    <input  
+      id="tabInput"  
+      class="input"  
+      type="text"  
+      placeholder="Type the tab name here"  
+      maxlength="21"           <!-- hard cap -->  
+    />  
+    <div id="charInfo" class="char-info"></div>  
+  
+    <div class="preview-label">Preview (fixed 2-line tab):</div>  
+    <div class="tab-outer">  
+      <div class="tab-stripes"></div>  
+      <div id="tabBody" class="tab-body"></div>  
+    </div>  
+  
+    <div id="status" class="status"></div>  
+  </div>  
+  
+  <script>  
+    const HARD_CHAR_LIMIT = 21;  
+  
+    const input = document.getElementById('tabInput');  
+    const tabBody = document.getElementById('tabBody');  
+    const status = document.getElementById('status');  
+    const charInfo = document.getElementById('charInfo');  
+  
+    // === Canvas for measuring text widths ===  
+    const canvas = document.createElement('canvas');  
+    const ctx = canvas.getContext('2d');  
+    ctx.font = '700 16px Arial';              // must match CSS tab font  
+  
+    // Inner text width (outer 190 - stripes 20 - padding left/right 10/10)  
+    const TEXT_MAX_WIDTH = 190 - 20 - 10 - 10;  
+    const MAX_LINES = 2;  
+  
+    function textWidth(str) {  
+      return ctx.measureText(str).width;  
+    }  
+  
+    // Lay out text into up to 2 lines with whole words first, last line can cut mid‑word  
+    function layoutText(text) {  
+      const words = text.split(/\s+/).filter(Boolean);  
+      const lines = [];  
+      let current = '';  
+      let cutMidWord = false;  
+  
+      for (let i = 0; i < words.length; i++) {  
+        const word = words[i];  
+        const test = current ? current + ' ' + word : word;  
+  
+        if (textWidth(test) <= TEXT_MAX_WIDTH) {  
+          current = test;  
+        } else {  
+          if (lines.length === 0) {  
+            if (current) lines.push(current);  
+  
+            if (textWidth(word) <= TEXT_MAX_WIDTH) {  
+              current = word;  
+            } else {  
+              let piece = '';  
+              for (let j = 0; j < word.length; j++) {  
+                const candidate = word.slice(0, j + 1);  
+                if (textWidth(candidate) <= TEXT_MAX_WIDTH) {  
+                  piece = candidate;  
+                } else break;  
+              }  
+              current = piece;  
+              cutMidWord = true;  
+              break;  
+            }  
+          } else if (lines.length === 1) {  
+            let base = current ? current + ' ' : '';  
+            let piece = '';  
+            for (let j = 0; j < word.length; j++) {  
+              const candidate = base + word.slice(0, j + 1);  
+              if (textWidth(candidate) <= TEXT_MAX_WIDTH) {  
+                piece = word.slice(0, j + 1);  
+              } else break;  
+            }  
+            current = base + piece;  
+            cutMidWord = true;  
+            break;  
+          } else {  
+            cutMidWord = true;  
+            break;  
+          }  
+        }  
+      }  
+  
+      if (current) lines.push(current);  
+      return { lines: lines.slice(0, MAX_LINES), cutMidWord };  
+    }  
+  
+    function update() {  
+      const raw = input.value;  
+      const trimmed = raw.trim();  
+      const length = trimmed.length;  
+  
+      charInfo.textContent = `Length: ${length} / ${HARD_CHAR_LIMIT}`;  
+  
+      if (!trimmed) {  
+        tabBody.textContent = '';  
+        tabBody.classList.remove('too-long');  
+        status.textContent = '';  
+        return;  
+      }  
+  
+      const { lines, cutMidWord } = layoutText(trimmed);  
+      tabBody.textContent = lines.join('\n');  
+  
+      // NEW RULE: if user hits the hard limit (21/21), treat as too long  
+      const atLimit = length >= HARD_CHAR_LIMIT;  
+      const isTooLong = cutMidWord || atLimit;  
+  
+      if (isTooLong) {  
+        status.textContent = '⚠️ Too long / at limit: will be cut in game.';  
+        status.style.color = '#ff6b6b';  
+        tabBody.classList.add('too-long');  
+      } else {  
+        status.textContent = '✅ Fits: matches game 2-line behavior.';  
+        status.style.color = '#40f58b';  
+        tabBody.classList.remove('too-long');  
+      }  
+    }  
+  
+    input.addEventListener('input', update);  
+  
+    // Example  
+    input.value = '';  
+    update();  
+  </script>  
+</body>  
+</html>
